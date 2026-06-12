@@ -93,7 +93,8 @@ class AppRepository(private val context: Context) {
         lat: Double,
         lng: Double,
         profileImageUri: String,
-        idCardImageUri: String
+        idCardImageUri: String,
+        workImagesCSV: String = ""
     ) = withContext(Dispatchers.IO) {
         val pendingId = "pend_${UUID.randomUUID()}"
         val newPending = PendingProviderEntity(
@@ -110,7 +111,8 @@ class AppRepository(private val context: Context) {
             idCardImageUrl = idCardImageUri,
             status = "pending",
             rejectReason = "",
-            createdAt = System.currentTimeMillis()
+            createdAt = System.currentTimeMillis(),
+            workImagesCSV = workImagesCSV
         )
         dao.insertPendingProvider(newPending)
         logAction("USER", "تسجيل مهني جديد", "قدم المهني $fullName طلباً للتطبيق")
@@ -142,11 +144,37 @@ class AppRepository(private val context: Context) {
                 isSubscribed = false,
                 subscriptionExpiry = 0L,
                 fcmToken = "",
-                createdAt = System.currentTimeMillis()
+                createdAt = System.currentTimeMillis(),
+                workImagesCSV = pending.workImagesCSV
             )
             dao.insertProvider(provider)
             dao.deletePendingProviderById(pendingId)
             logAction("ADMIN", "قبول طلب", "تم بنجاح قبول وتفعيل الحساب للمهني: ${provider.fullName}")
+        }
+    }
+
+    suspend fun updateProviderDetails(
+        id: String,
+        fullName: String,
+        phone: String,
+        address: String,
+        district: String,
+        profileImageUrl: String,
+        workImagesCSV: String
+    ) = withContext(Dispatchers.IO) {
+        val list = allProviders.firstOrNull() ?: emptyList()
+        val target = list.find { it.id == id }
+        if (target != null) {
+            val updated = target.copy(
+                fullName = fullName,
+                phone = phone,
+                address = address,
+                district = district,
+                profileImageUrl = profileImageUrl,
+                workImagesCSV = workImagesCSV
+            )
+            dao.updateProvider(updated)
+            logAction("ADMIN", "تعديل تفاصيل مهني", "تم تعديل معلومات مقدم الخدمة $fullName من قبل الإدارة")
         }
     }
 

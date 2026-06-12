@@ -1,6 +1,9 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -10,6 +13,7 @@ import com.example.data.repository.AppRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -82,19 +86,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Combined filtered providers
     val filteredProviders: StateFlow<List<ProviderEntity>> = combine(
-        activeProviders,
+        combine(activeProviders, appSettings) { list, settings -> Pair(list, settings) },
         _searchQuery,
         _selectedCategoryId,
         _selectedDistrict,
         _minRating
-    ) { list, query, catId, district, rating ->
+    ) { (list, settings), query, catId, dstr, rating ->
+        val weight = settings?.ratingWeight ?: 1.0
         list.filter { p ->
-            val matchesQuery = query.isEmpty() || p.fullName.contains(query, ignoreCase = true) || p.phone.contains(query) || p.address.contains(query, ignoreCase = true)
+            val matchesQuery = query.isEmpty() || p.fullName.contains(query, ignoreCase = true) || p.phone.contains(query) || p.address.contains(query, ignoreCase = true) || p.district.contains(query, ignoreCase = true)
             val matchesCategory = catId == null || p.mainCategoryId == catId || p.subCategoryId == catId
-            val matchesDistrict = district == null || p.district.contains(district, ignoreCase = true) || p.address.contains(district, ignoreCase = true)
+            val matchesDistrict = dstr == null || p.district.contains(dstr, ignoreCase = true) || p.address.contains(dstr, ignoreCase = true)
             val matchesRating = p.averageRating >= rating
             matchesQuery && matchesCategory && matchesDistrict && matchesRating
-        }
+        }.sortedWith(
+            compareByDescending<ProviderEntity> { p ->
+                if (p.isPinned || p.isSubscribed) 100000.0 else 0.0
+            }.thenByDescending { p ->
+                (if (p.isVerified) 1000.0 else 0.0) + (p.averageRating * weight)
+            }
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- Auth & Backdoor control states ---
@@ -232,9 +243,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         subCatId: String,
         address: String,
         district: String,
+        profileUri: String,
+        idCardUri: String,
+        workUris: List<String>,
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
+            val context = getApplication<Application>()
+            val compProfile = compressUriToWebp(context, profileUri)
+            val compCard = compressUriToWebp(context, idCardUri)
+            val compWorkCSV = workUris.map { compressUriToWebp(context, it) }.filter { it.isNotEmpty() }.joinToString(",")
+
             repository.submitProviderRegistration(
                 fullName = fullName,
                 phone = phone,
@@ -244,9 +263,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 district = district,
                 lat = 15.3186,
                 lng = 44.2045,
-                profileImageUri = "",
-                idCardImageUri = ""
+                profileImageUri = compProfile,
+                idCardImageUri = compCard,
+                workImagesCSV = compWorkCSV
             )
+            onSuccess()
+        }
+    }
+
+    fun updateProviderDetails(
+        id: String,
+        fullName: String,
+        phone: String,
+        address: String,
+        district: String,
+        profileImageUri: String,
+        workImagesCSV: String,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            val finalProfile = if (profileImageUri.startsWith("content://")) {
+                compressUriToWebp(context, profileImageUri)
+            } else profileImageUri
+
+            val finalWork = workImagesCSV.split(",")
+                .map { uri ->
+                    if (uri.startsWith("content://")) compressUriToWebp(context, uri) else uri
+                }
+                .filter { it.isNotEmpty() }
+                .joinToString(",")
+
+            repository.updateProviderDetails(id, fullName, phone, address, district, finalProfile, finalWork)
             onSuccess()
         }
     }
@@ -399,6 +447,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun isConnected(): Boolean = repository.isConnected()
+
+    private fun compressUriToWebp(context: android.content.Context, uriString: String): String {
+        if (uriString.isEmpty()) return ""
+        return try {
+            val uri = Uri.parse(uriString)
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close() ?: return uriString
+
+            val outDir = File(context.filesDir, "compressed_images")
+            if (!outDir.exists()) outDir.mkdirs()
+
+            val outFile = File(outDir, "img_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.webp")
+            val outStream = FileOutputStream(outFile)
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, outStream)
+            } else {
+                @Suppress("DEPRECATION")
+                bitmap.compress(Bitmap.CompressFormat.WEBP, 75, outStream)
+            }
+            outStream.flush()
+            outStream.close()
+            outFile.absolutePath
+        } catch (e: Exception) {
+            e.printStackTrace()
+            uriString
+        }
+    }
 }
 
 class AppViewModelFactory(private val application: Application) : ViewModelProvider.Factory {

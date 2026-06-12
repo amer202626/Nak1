@@ -3,6 +3,8 @@ package com.example.ui.screen
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -707,6 +709,9 @@ fun HomeScreen(
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
+    val settings by viewModel.appSettings.collectAsStateWithLifecycle()
+    val isMapsEnabled = settings?.isMapsEnabled ?: true
+
     // Marquee continuous message horizontal animation setup
     val marqueeTransition = rememberInfiniteTransition(label = "WelcomeMarquee")
     val translationX by marqueeTransition.animateFloat(
@@ -958,6 +963,7 @@ fun HomeScreen(
                 ProviderCard(
                     provider = provider,
                     language = language,
+                    isMapsEnabled = isMapsEnabled,
                     onDialCall = {
                         val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${provider.phone}"))
                         context.startActivity(intent)
@@ -990,6 +996,7 @@ fun HomeScreen(
 fun ProviderCard(
     provider: ProviderEntity,
     language: String,
+    isMapsEnabled: Boolean,
     onDialCall: () -> Unit,
     onWhatsApp: () -> Unit,
     onDirections: () -> Unit,
@@ -1083,6 +1090,59 @@ fun ProviderCard(
                 )
             }
 
+            // Expandable portfolio section
+            var expanded by remember { mutableStateOf(false) }
+            val workPics = provider.workImagesCSV.split(",").filter { it.isNotEmpty() }
+            
+            if (workPics.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = { expanded = !expanded }
+                    ) {
+                        Text(
+                            if (expanded) {
+                                if (language == "ar") "🔼 إخفاء سابقة الأعمال" else "🔼 Hide Portfolio"
+                            } else {
+                                if (language == "ar") "🔽 عرض سابقة الأعمال (${workPics.size})" else "🔽 View Portfolio (${workPics.size})"
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                
+                AnimatedVisibility(visible = expanded) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(workPics) { imgPath ->
+                            Box(
+                                modifier = Modifier
+                                    .size(90.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                            ) {
+                                coil.compose.AsyncImage(
+                                    model = java.io.File(imgPath),
+                                    contentDescription = "Work sample",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Action Utility Buttons (Call, WhatsApp, Maps, Local chat, Rate)
@@ -1111,11 +1171,13 @@ fun ProviderCard(
                     Text("واتساب", fontSize = 11.sp)
                 }
 
-                IconButton(
-                    onClick = onDirections,
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer)
-                ) {
-                    Icon(Icons.Default.MyLocation, contentDescription = "GPS Location Directions", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                if (isMapsEnabled) {
+                    IconButton(
+                        onClick = onDirections,
+                        modifier = Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer)
+                    ) {
+                        Icon(Icons.Default.MyLocation, contentDescription = "GPS Location Directions", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                    }
                 }
 
                 IconButton(
@@ -1253,11 +1315,43 @@ fun RegisterProviderScreen(
     var mainCategoryId by remember { mutableStateOf("c1") }
     var subCategoryId by remember { mutableStateOf("sub1") }
     
+    var genderIsMale by remember { mutableStateOf(true) }
+    var profileImageUri by remember { mutableStateOf("") }
+    var idCardImageUri by remember { mutableStateOf("") }
+    var workImageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    
     var localPicUploaded by remember { mutableStateOf(false) }
     var nationalCardUploaded by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    val settings by viewModel.appSettings.collectAsStateWithLifecycle()
+    val maxWorkPics = settings?.maxWorkImages ?: 5
+
+    val profileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            profileImageUri = uri.toString()
+            localPicUploaded = true
+        }
+    }
+
+    val idCardLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            idCardImageUri = uri.toString()
+            nationalCardUploaded = true
+        }
+    }
+
+    val workImagesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        workImageUris = uris.take(maxWorkPics)
+    }
 
     Column(
         modifier = Modifier
@@ -1343,6 +1437,25 @@ fun RegisterProviderScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Gender Row
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(if (language == "ar") "تحديد الجنس (لمراعاة الخصوصية):" else "Gender (for privacy parameters):", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = genderIsMale, onClick = { genderIsMale = true })
+                Text(if (language == "ar") "ذكر (صورة سيلفي)" else "Male (Selfie Portrait)", fontSize = 12.sp)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = !genderIsMale, onClick = { genderIsMale = false })
+                Text(if (language == "ar") "أنثى (صورة تعبيرية للمهنة)" else "Female (Profession Image)", fontSize = 12.sp)
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+
         // Image pick buttons: Simulated Camera and galleries
         Text(if (language == "ar") "رفع المستندات الثبوتية والمظهر" else "Documents and ID Verification Upload", fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Row(
@@ -1351,33 +1464,77 @@ fun RegisterProviderScreen(
         ) {
             Button(
                 onClick = { 
-                    localPicUploaded = true
-                    Toast.makeText(context, if (language == "ar") "📷 تم التقاط صورتك الشخصية بالكاميرا!" else "Camera portrait captured!", Toast.LENGTH_SHORT).show()
+                    profileLauncher.launch("image/*")
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
                 modifier = Modifier.weight(1f)
             ) {
-                Text(if (language == "ar") "📷 التقاط صورة شخصية" else "Capture Portrait")
+                Text(
+                    if (genderIsMale) {
+                        if (language == "ar") "📷 صـورة شخصية" else "Portrait Selfie"
+                    } else {
+                        if (language == "ar") "🎨 صورة تعبيرية للمهنة" else "Profession Image"
+                    }
+                )
             }
 
             Button(
                 onClick = { 
-                    nationalCardUploaded = true
-                    Toast.makeText(context, if (language == "ar") "🖼️ تم اختيار الهوية من معرض الصور!" else "ID card chosen from gallery!", Toast.LENGTH_SHORT).show()
+                    idCardLauncher.launch("image/*")
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
                 modifier = Modifier.weight(1f)
             ) {
-                Text(if (language == "ar") "🖼️ اختر بطاقة الهوية" else "Gallery ID card")
+                Text(if (language == "ar") "🖼️ بطاقة الهوية" else "Gallery ID card")
             }
         }
 
         // Upload checkers
         if (localPicUploaded) {
-            Text("✅ صورتك الشخصية جاهزة للرفع والضغط", fontSize = 11.sp, color = ActiveGreen, modifier = Modifier.padding(bottom = 4.dp))
+            Text("✅ صورتك الشخصية جاهزة للرفع والضغط والتصغير", fontSize = 11.sp, color = ActiveGreen, modifier = Modifier.padding(bottom = 4.dp))
+        } else if (!genderIsMale) {
+            Text("ℹ️ يُسمح للفتيات برفع صورة تعبيرية للمهنة بدلاً من السيلفي للخصوصية", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 4.dp))
         }
         if (nationalCardUploaded) {
-            Text("✅ صورة الهوية الوطنية جاهزة ومشفرة", fontSize = 11.sp, color = ActiveGreen)
+            Text("✅ صورة الهوية الوطنية جاهزة ومشفرة للتحقق", fontSize = 11.sp, color = ActiveGreen)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Portfolio Work Images Choice
+        Text(if (language == "ar") "نماذج من أعمالك وصور خدمتك السابقة:" else "Work Portfolio Samples:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Button(
+            onClick = { workImagesLauncher.launch("image/*") },
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (language == "ar") "🖼️ اختر نماذج الأعمال (الحد الأقصى: $maxWorkPics)" else "🖼️ Choose Work Samples (Max: $maxWorkPics)")
+        }
+        
+        if (workImageUris.isNotEmpty()) {
+            Text(
+                text = if (language == "ar") "تم تحديد ${workImageUris.size} صور للضغط التلقائي الـ WebP:" else "Selected ${workImageUris.size} images for automated WebP compression:",
+                fontSize = 11.sp,
+                color = ActiveGreen,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(workImageUris) { uri ->
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
+                    ) {
+                        Text("WebP", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1395,7 +1552,17 @@ fun RegisterProviderScreen(
                 if (fullName.isEmpty() || phone.isEmpty() || address.isEmpty() || district.isEmpty()) {
                     Toast.makeText(context, if (language == "ar") "فضلاً أكمل كافة الحقول الإجبارية!" else "Please satisfy all inputs!", Toast.LENGTH_SHORT).show()
                 } else {
-                    viewModel.submitRegistration(fullName, phone, mainCategoryId, subCategoryId, address, district) {
+                    viewModel.submitRegistration(
+                        fullName = fullName,
+                        phone = phone,
+                        mainCatId = mainCategoryId,
+                        subCatId = subCategoryId,
+                        address = address,
+                        district = district,
+                        profileUri = profileImageUri,
+                        idCardUri = idCardImageUri,
+                        workUris = workImageUris.map { it.toString() }
+                    ) {
                         Toast.makeText(context, if (language == "ar") "تم تقديم طلبك بنجاح للمراجعة المشرفة الفورية!" else "Form submitted for instant supervisor review!", Toast.LENGTH_LONG).show()
                         onSuccess()
                     }
@@ -1662,7 +1829,7 @@ fun AdminDashboardScreen(
     onLogout: () -> Unit
 ) {
     var selectedTabIdx by remember { mutableStateOf(0) }
-    val tabTitles = listOf("الإحصائيات", "الطلبات المعلقة", "أضف يدوياً", "قائمة المزودين", "الأقسام والبنود", "التقارير وسجل النظام")
+    val tabTitles = listOf("الإحصائيات", "الطلبات المعلقة", "أضف يدوياً", "قائمة المزودين", "الأقسام والبنود", "التقارير وسجل النظام", "تنظيف الصور")
     
     val context = LocalContext.current
 
@@ -2008,6 +2175,150 @@ fun AdminDashboardScreen(
                         }
                     }
                 }
+                6 -> {
+                    ImageManagementTab(
+                        allActiveProviders = allProviders,
+                        pendingProviders = pendingProviders,
+                        language = language
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Helper Composable for Image Space Management & Unlinked File Cleanup
+@Composable
+fun ImageManagementTab(
+    allActiveProviders: List<ProviderEntity>,
+    pendingProviders: List<PendingProviderEntity>,
+    language: String
+) {
+    val context = LocalContext.current
+    var totalCacheSize by remember { mutableStateOf(0L) }
+    var allImageFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var unlinkedFiles by remember { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var isScanning by remember { mutableStateOf(true) }
+
+    val refreshScan = {
+        isScanning = true
+        val cacheFolder = java.io.File(context.filesDir, "compressed_images")
+        val files = if (cacheFolder.exists()) {
+            cacheFolder.listFiles()?.toList() ?: emptyList()
+        } else emptyList()
+
+        // Gather all active and pending images URIs/strings from database
+        val registeredUris = allActiveProviders.flatMap { p ->
+            val works = p.workImagesCSV.split(",").filter { it.isNotEmpty() }
+            works + listOf(p.profileImageUrl, p.idCardImageUrl)
+        }.filter { it.isNotEmpty() }.toSet()
+
+        val pendingUris = pendingProviders.flatMap { p ->
+            val works = p.workImagesCSV.split(",").filter { it.isNotEmpty() }
+            works + listOf(p.profileImageUrl, p.idCardImageUrl)
+        }.filter { it.isNotEmpty() }.toSet()
+
+        val databaseUrisSet = (registeredUris + pendingUris).map { java.io.File(it).absolutePath }.toSet()
+
+        val unlinked = files.filter { file ->
+            !databaseUrisSet.contains(file.absolutePath)
+        }
+
+        allImageFiles = files
+        unlinkedFiles = unlinked
+        totalCacheSize = files.sumOf { it.length() }
+        isScanning = false
+    }
+
+    LaunchedEffect(Unit) {
+        refreshScan()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            if (language == "ar") "🖼️ تقرير وجرد استهلاك مساحة الصور" else "🖼️ Image Space Consumption & Storage Report",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            if (language == "ar") "يقوم التطبيق بضغط وتحويل كافة الملفات الشخصية والبطاقات وصور المهارات لتنسيق WebP تلقائياً لتوفير المساحة ومسح التالف." else "The engine compresses portfolios/selfies automatically to WebP format to save memory.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        if (isScanning) {
+            Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (language == "ar") "إجمالي عدد الصور المخزنة:" else "Total cached file assets:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("${allImageFiles.size} صور", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (language == "ar") "مساحة استهلاك المجلد الإجمالي:" else "Total storage size used:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val sizeKb = totalCacheSize / 1024
+                        val sizeString = if (sizeKb > 1024) "${sizeKb / 1024} MB" else "$sizeKb KB"
+                        Text(sizeString, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (language == "ar") "صور غير مرتبطة بقاعدة البيانات (بقايا):" else "Unlinked legacy artifacts:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = InactiveRed)
+                        Text("${unlinkedFiles.size} صور", fontSize = 13.sp, color = InactiveRed, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = refreshScan,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+            ) {
+                Text(if (language == "ar") "🔄 إعادة فحص الذاكرة والهاتف" else "🔄 Rescan Local Directory")
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Button(
+                onClick = {
+                    var deletedCount = 0
+                    unlinkedFiles.forEach { file ->
+                        if (file.delete()) deletedCount++
+                    }
+                    Toast.makeText(context, if (language == "ar") "🗑️ تم مسح $deletedCount صور زائدة لتسريع وتحرير التخزين!" else "Deleted $deletedCount unlinked images successfully!", Toast.LENGTH_LONG).show()
+                    refreshScan()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
+                enabled = unlinkedFiles.isNotEmpty()
+            ) {
+                Text(if (language == "ar") "🗑️ تفريغ وحذف الصور غير المستخدمة" else "🗑️ Delete Unlinked Assets & Keep Database Clean")
             }
         }
     }

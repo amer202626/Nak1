@@ -36,7 +36,8 @@ data class ProviderEntity(
     val isSubscribed: Boolean,
     val subscriptionExpiry: Long,
     val fcmToken: String,
-    val createdAt: Long
+    val createdAt: Long,
+    val workImagesCSV: String = ""
 )
 
 @Entity(tableName = "pending_providers")
@@ -54,7 +55,8 @@ data class PendingProviderEntity(
     val idCardImageUrl: String,
     val status: String, // "pending", "rejected"
     val rejectReason: String,
-    val createdAt: Long
+    val createdAt: Long,
+    val workImagesCSV: String = ""
 )
 
 @Entity(tableName = "app_settings")
@@ -75,7 +77,18 @@ data class AppSettingEntity(
     val radiusSearchLimit: Int,
     val voiceSearchEnabled: Boolean,
     val maintenanceMode: Boolean,
-    val maintenanceMessage: String
+    val maintenanceMessage: String,
+    val ratingWeight: Double = 1.0,
+    val maxWorkImages: Int = 5,
+    val isMapsEnabled: Boolean = true,
+    val notificationsEnabled: Boolean = true,
+    val aiIconSize: Int = 40,
+    val aiIconX: Float = 0.85f,
+    val aiIconY: Float = 0.85f,
+    val footerSize: Int = 12,
+    val isAiFloating: Boolean = true,
+    val footerLogoUri: String = "",
+    val customColorsCSV: String = "🌌 كوزميك سيلفر:#ECEFF1:#37474F,✨ الذهبي الفاخر:#FFFFD7:#8A7300,🟢 الزمردي الراقي:#2E7D32:#0D5215,⚫ الأسود الدخاني:#1A1A1A:#424242,🌸 الزهري الفاتح:#FFC0CB:#FF80AB,🟡 الأبيض الذهبي:#FFFDD0:#D4AF37"
 )
 
 @Entity(tableName = "banners")
