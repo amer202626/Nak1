@@ -6,3 +6,8 @@ plugins {
   alias(libs.plugins.roborazzi) apply false
   alias(libs.plugins.secrets) apply false
 }
+
+tasks.register<Copy>("copyApkToRoot") {
+  from(".build-outputs/app-debug.apk")
+  into(rootDir)
+}
