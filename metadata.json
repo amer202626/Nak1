@@ -1,5 +1,5 @@
 {
-  "name": "WAM Services",
+  "name": "دليل خدمات اليمن",
   "description": "دليل خدمات يمني فاخر يربط المستخدمين بمقدمي الخدمات بالتأثير الفوري والتكامل الكامل دون إنترنت.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

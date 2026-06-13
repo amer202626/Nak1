@@ -1,104 +1,11 @@
 package com.example.data.database
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
-import androidx.room.Update
-import androidx.room.Delete
+import androidx.room.*
 import com.example.data.model.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AppDao {
-    // --- Categories ---
-    @Query("SELECT * FROM categories ORDER BY `order` ASC")
-    fun getAllCategoriesFlow(): Flow<List<CategoryEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCategory(category: CategoryEntity)
-
-    @Query("DELETE FROM categories WHERE id = :id")
-    suspend fun deleteCategoryById(id: String)
-
-    // --- Providers ---
-    @Query("SELECT * FROM service_providers WHERE isBlocked = 0")
-    fun getAllActiveProvidersFlow(): Flow<List<ProviderEntity>>
-
-    @Query("SELECT * FROM service_providers")
-    fun getAllProvidersFlow(): Flow<List<ProviderEntity>>
-
-    @Query("SELECT * FROM service_providers WHERE isRecommended = 1 AND isBlocked = 0")
-    fun getRecommendedProvidersFlow(): Flow<List<ProviderEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertProvider(provider: ProviderEntity)
-
-    @Update
-    suspend fun updateProvider(provider: ProviderEntity)
-
-    @Query("DELETE FROM service_providers WHERE id = :id")
-    suspend fun deleteProviderById(id: String)
-
-    // --- Pending Providers ---
-    @Query("SELECT * FROM pending_providers ORDER BY createdAt DESC")
-    fun getAllPendingProvidersFlow(): Flow<List<PendingProviderEntity>>
-
-    @Query("SELECT COUNT(*) FROM pending_providers WHERE status = 'pending'")
-    fun getPendingCountFlow(): Flow<Int>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertPendingProvider(pending: PendingProviderEntity)
-
-    @Query("DELETE FROM pending_providers WHERE id = :id")
-    suspend fun deletePendingProviderById(id: String)
-
-    // --- Dynamic Settings ---
-    @Query("SELECT * FROM app_settings WHERE id = 'master' LIMIT 1")
-    fun getSettingsFlow(): Flow<AppSettingEntity?>
-
-    @Query("SELECT * FROM app_settings WHERE id = 'master' LIMIT 1")
-    suspend fun getSettingsDirect(): AppSettingEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSettings(settings: AppSettingEntity)
-
-    // --- Banners ---
-    @Query("SELECT * FROM banners WHERE isActive = 1 ORDER BY createdAt DESC")
-    fun getActiveBannersFlow(): Flow<List<BannerEntity>>
-
-    @Query("SELECT * FROM banners ORDER BY createdAt DESC")
-    fun getAllBannersFlow(): Flow<List<BannerEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBanner(banner: BannerEntity)
-
-    @Query("DELETE FROM banners WHERE id = :id")
-    suspend fun deleteBannerById(id: String)
-
-    // --- Reports ---
-    @Query("SELECT * FROM reports ORDER BY createdAt DESC")
-    fun getAllReportsFlow(): Flow<List<ReportEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertReport(report: ReportEntity)
-
-    @Query("DELETE FROM reports WHERE id = :id")
-    suspend fun deleteReportById(id: String)
-
-    // --- Reviews ---
-    @Query("SELECT * FROM reviews WHERE providerId = :providerId ORDER BY createdAt DESC")
-    fun getReviewsForProviderFlow(providerId: String): Flow<List<ReviewEntity>>
-
-    @Query("SELECT * FROM reviews ORDER BY createdAt DESC")
-    fun getAllReviewsFlow(): Flow<List<ReviewEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertReview(review: ReviewEntity)
-
-    @Query("DELETE FROM reviews WHERE id = :id")
-    suspend fun deleteReviewById(id: String)
-
     // --- Loyalty Points ---
     @Query("SELECT * FROM loyalty_points WHERE userId = :userId LIMIT 1")
     suspend fun getLoyaltyPointsForUser(userId: String): LoyaltyPointsEntity?
@@ -112,9 +19,6 @@ interface AppDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChat(chat: ChatEntity)
-
-    @Query("DELETE FROM chats WHERE chatId = :chatId")
-    suspend fun deleteChatById(chatId: String)
 
     @Query("DELETE FROM chats")
     suspend fun deleteAllChats()
@@ -135,17 +39,4 @@ interface AppDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertActivityLog(log: ActivityLogEntity)
-
-    // --- Registration Terms ---
-    @Query("SELECT * FROM registration_terms WHERE isActive = 1 ORDER BY `order` ASC")
-    fun getActiveRegistrationTermsFlow(): Flow<List<RegistrationTermEntity>>
-
-    @Query("SELECT * FROM registration_terms ORDER BY `order` ASC")
-    fun getAllRegistrationTermsFlow(): Flow<List<RegistrationTermEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertRegistrationTerm(term: RegistrationTermEntity)
-
-    @Query("DELETE FROM registration_terms WHERE id = :id")
-    suspend fun deleteRegistrationTermById(id: String)
 }

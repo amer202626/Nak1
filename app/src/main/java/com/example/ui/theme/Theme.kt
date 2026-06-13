@@ -1,57 +1,57 @@
 package com.example.ui.theme
 
+import android.app.Activity
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
-fun parseColorSafe(hex: String, defaultColor: Color): Color {
-    if (hex.isEmpty()) return defaultColor
-    return try {
-        // Handle shorthand or standard hex formats
-        val cleaned = if (hex.startsWith("#")) hex else "#$hex"
-        Color(android.graphics.Color.parseColor(cleaned))
-    } catch (e: Exception) {
-        defaultColor
-    }
-}
+private val DarkColorScheme = darkColorScheme(
+    primary = Purple80,
+    secondary = PurpleGrey80,
+    tertiary = Pink80
+)
+
+private val LightColorScheme = lightColorScheme(
+    primary = Purple40,
+    secondary = PurpleGrey40,
+    tertiary = Pink40
+)
 
 @Composable
-fun WamServicesTheme(
-    primaryHex: String,
-    secondaryHex: String,
+fun WAMServicesTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    // Determine dynamic background based on theme presets, or auto-calculate card/background depth
-    val primaryColor = parseColorSafe(primaryHex, DefaultPrimary)
-    val secondaryColor = parseColorSafe(secondaryHex, DefaultSecondary)
-    
-    // Choose backing background
-    val backgroundColor = when (primaryHex.lowercase()) {
-        "#eceff1", "#b0bec5" -> CosmicSilverBackground
-        "#ffd700", "#ffeb3b" -> GoldLuxuryBackground
-        "#00c853", "#2e7d32" -> EmeraldBackground
-        else -> {
-            // Calculated dark background
-            Color(0xFF121212)
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.primary.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
         }
     }
 
-    val customColorScheme = darkColorScheme(
-        primary = primaryColor,
-        secondary = secondaryColor,
-        background = backgroundColor,
-        surface = Color(0xFF1E262C),
-        onPrimary = Color.Black,
-        onSecondary = Color.White,
-        onBackground = Color.White,
-        onSurface = Color.White,
-        primaryContainer = secondaryColor.copy(alpha = 0.3f),
-        secondaryContainer = primaryColor.copy(alpha = 0.2f)
-    )
-
     MaterialTheme(
-        colorScheme = customColorScheme,
+        colorScheme = colorScheme,
         typography = Typography,
         content = content
     )

@@ -3,45 +3,38 @@ package com.example
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModelProvider
 import com.example.ui.screen.MainDashboard
-import com.example.ui.theme.WamServicesTheme
+import com.example.ui.theme.WAMServicesTheme
 import com.example.ui.viewmodel.AppViewModel
-import com.example.ui.viewmodel.AppViewModelFactory
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 
 class MainActivity : ComponentActivity() {
-
-    // Initialize unified logical controller
-    private val viewModel: AppViewModel by viewModels {
-        AppViewModelFactory(application)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         
-        setContent {
-            // Live observe master setting primary and secondary hex colors
-            val settings by viewModel.appSettings.collectAsState()
-            
-            val primaryHex = settings?.primaryColor ?: "#ECEFF1"
-            val secondaryHex = settings?.secondaryColor ?: "#37474F"
+        // Manual self-contained Firebase initialization to bypass buggy Google Services Gradle Plugin mutation conflict
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                val options = FirebaseOptions.Builder()
+                    .setApplicationId("1:89823302013:android:1910d098b23f547aa3fc14")
+                    .setProjectId("dalyly2026")
+                    .setApiKey("AIzaSyCgFnPJso1f2mwB1jvyRbGzZReAdf4eug0")
+                    .setStorageBucket("dalyly2026.firebasestorage.app")
+                    .build()
+                FirebaseApp.initializeApp(this, options)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
-            WamServicesTheme(
-                primaryHex = primaryHex,
-                secondaryHex = secondaryHex
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    MainDashboard(viewModel = viewModel)
-                }
+        // Initialize Core App ViewModel containing Firestore live syncer and database interactions
+        val viewModel = ViewModelProvider(this)[AppViewModel::class.java]
+
+        setContent {
+            WAMServicesTheme {
+                MainDashboard(viewModel)
             }
         }
     }
