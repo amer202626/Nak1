@@ -2,12 +2,4 @@
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
-    alias(libs.plugins.kotlin.serialization) apply false
-    alias(libs.plugins.google.devtools.ksp) apply false
-    alias(libs.plugins.roborazzi) apply false
-}
-
-tasks.register<Copy>("copyApkToRoot") {
-    from(".build-outputs/app-debug.apk")
-    into(rootDir)
 }
