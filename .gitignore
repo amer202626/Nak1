@@ -1,11 +1,21 @@
-# Standard Android gitignore configuration
-.gradle/
-build/
-app/build/
-.idea/
 *.iml
-local.properties
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
 .DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+debug.keystore
 
-# Explicitly ensure app-debug.apk is tracked by Git
 !app-debug.apk
+
