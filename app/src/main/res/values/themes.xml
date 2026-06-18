@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_background">#121212</color>
-    <color name="primary_color">#ECEFF1</color>
-
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
-        <item name="android:windowBackground">@color/window_background</item>
-        <item name="android:textColorPrimary">@color/primary_color</item>
+    <style name="Theme.Dalyly" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- Let Jetpack Compose manage all themes and status bar colors -->
     </style>
 </resources>

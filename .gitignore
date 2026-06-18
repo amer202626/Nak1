@@ -17,5 +17,8 @@ local.properties
 .env
 debug.keystore
 
-# Ensure app-debug.apk is tracked by Git
+# Ensure app-debug.apk is tracked by Git (requested by user before)
 !app-debug.apk
+!/app-debug.apk
+!/build-outputs/
+!/build-outputs/app-debug.apk

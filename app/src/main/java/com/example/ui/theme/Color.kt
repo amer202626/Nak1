@@ -2,28 +2,16 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// --- Cosmic Silver ---
-val CosmicSilverPrimary = Color(0xFFB0BEC5)
-val CosmicSilverSecondary = Color(0xFF37474F)
-val CosmicSilverBackground = Color(0xFF141A1E)
+// Luxury Yemeni Color Palette (Midnight blue, Gold, Crimson & Slate)
+val PrimaryColor = Color(0xFF0F2C59)      // Midnight Navy
+val SecondaryColor = Color(0xFFC5A880)    // Brushed Gold Accent
+val DarkBackgroundColor = Color(0xFF0B141F)// High-Contrast Deep Slate
+val SurfaceColor = Color(0xFF132237)      // Lighter Slate Card Background
+val GoldColor = Color(0xFFFFD700)         // Pure Gold Star Accent
+val CrimsonColor = Color(0xFFD9534F)      // Elegant Red Accent
+val GreenColor = Color(0xFF25D366)        // WhatsApp Green / Approved state
 
-// --- Gold Luxury ---
-val GoldLuxuryPrimary = Color(0xFFFFD700)
-val GoldLuxurySecondary = Color(0xFF8A7300)
-val GoldLuxuryBackground = Color(0xFF0F0E0B)
-
-// --- Emerald ---
-val EmeraldPrimary = Color(0xFF2E7D32)
-val EmeraldSecondary = Color(0xFF0D5215)
-val EmeraldBackground = Color(0xFF080D09)
-
-// Fallbacks
-val DefaultPrimary = CosmicSilverPrimary
-val DefaultSecondary = CosmicSilverSecondary
-val DefaultBackground = CosmicSilverBackground
-
-// Accent text colors
-val ActiveGreen = Color(0xFF4CAF50)
-val InactiveRed = Color(0xFFF44336)
-val VerifiedBlue = Color(0xFF2196F3)
-val VBadgeGold = Color(0xFFFFD700)
+val LightPrimary = Color(0xFF1D5AAB)
+val LightSecondary = Color(0xFF8D714B)
+val LightBackground = Color(0xFFF5F7FA)
+val LightSurface = Color(0xFFFFFFFF)

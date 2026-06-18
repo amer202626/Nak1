@@ -4,39 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- Outer Golden Shield Crest -->
-    <path
-        android:strokeColor="#FFD700"
-        android:strokeWidth="1.5"
-        android:fillColor="#E01A242B"
-        android:pathData="M54,26 C68,26 76,32 76,32 C76,54 62,68 54,72 C46,68 32,54 32,32 C32,32 40,26 54,26 Z" />
-
-    <!-- Innermost Golden Detail -->
-    <path
-        android:strokeColor="#FFD700"
-        android:strokeWidth="1"
-        android:fillColor="#00000000"
-        android:pathData="M54,30 C64,30 71,35 71,35 C71,51 59,63 54,66 C49,63 37,51 37,35 C37,35 44,30 54,30 Z" />
-
-    <!-- Mechanical Wrench symbol -->
+    <!-- Star/Luxurious shape representing WAM Services -->
     <path
         android:fillColor="#FFD700"
-        android:pathData="M44,48 L56,48 L56,50 L44,50 Z" />
-    <path
-        android:fillColor="#FFD700"
-        android:pathData="M43,44 C45,44 47,46 47,48 C47,50 45,52 43,52 C41,52 39,50 39,48 C39,46 41,44 43,44 Z" />
-    <path
-        android:fillColor="#FFD700"
-        android:pathData="M57,44 C59,44 61,46 61,48 C61,50 59,52 57,52 C55,52 53,50 53,48 C53,46 55,44 57,44 Z" />
-
-    <!-- Lightening Bolt ⚡ symbol -->
-    <path
-        android:fillColor="#FFD700"
-        android:pathData="M55,36 L48,46 L53,46 L51,54 L59,43 L53,43 Z" />
-
-    <!-- Stars representing high-tier quality -->
-    <path
-        android:fillColor="#FFD700"
-        android:pathData="M54,60 L54.5,61.2 L55.8,61.2 L54.7,62 L55.1,63.2 L54,62.4 L52.9,63.2 L53.3,62 L52.2,61.2 L53.5,61.2 Z" />
+        android:pathData="M54,20 L64,44 L88,44 L69,58 L77,82 L54,68 L31,82 L39,58 L20,44 L44,44 Z" />
 </vector>

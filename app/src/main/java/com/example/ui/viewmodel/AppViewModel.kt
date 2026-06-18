@@ -1,68 +1,25 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.*
 import com.example.data.repository.AppRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AppRepository(application)
+    
+    // SharedPreferences for API Key and Theme
+    private val prefs = application.getSharedPreferences("WAM_PREFS", Context.MODE_PRIVATE)
 
-    // --- State Bindings from Repository ---
-    val categories: StateFlow<List<CategoryEntity>> = repository.categories
+    val categories: StateFlow<List<CategoryEntity>> = repository.allCategories
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val activeProviders: StateFlow<List<ProviderEntity>> = repository.activeProviders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allProviders: StateFlow<List<ProviderEntity>> = repository.allProviders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val recommendedProviders: StateFlow<List<ProviderEntity>> = repository.recommendedProviders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val pendingProviders: StateFlow<List<PendingProviderEntity>> = repository.pendingProviders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val pendingCount: StateFlow<Int> = repository.pendingCount
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-
-    val appSettings: StateFlow<AppSettingEntity?> = repository.appSettings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
-    val activeBanners: StateFlow<List<BannerEntity>> = repository.activeBanners
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allBanners: StateFlow<List<BannerEntity>> = repository.allBanners
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val reports: StateFlow<List<ReportEntity>> = repository.reports
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val reviews: StateFlow<List<ReviewEntity>> = repository.reviews
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val chats: StateFlow<List<ChatEntity>> = repository.chats
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val activityLogs: StateFlow<List<ActivityLogEntity>> = repository.activityLogs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val activeTerms: StateFlow<List<RegistrationTermEntity>> = repository.activeTerms
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allTerms: StateFlow<List<RegistrationTermEntity>> = repository.allTerms
+    val providers: StateFlow<List<ProviderEntity>> = repository.allProviders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val bookings: StateFlow<List<BookingEntity>> = repository.allBookings
@@ -71,352 +28,120 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val notifications: StateFlow<List<NotificationEntity>> = repository.allNotifications
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- Search & Filters State ---
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery = _searchQuery.asStateFlow()
+    val chats: StateFlow<List<ChatEntity>> = repository.allChats
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _selectedCategoryId = MutableStateFlow<String?>(null)
-    val selectedCategoryId = _selectedCategoryId.asStateFlow()
+    private val _selectedChatId = MutableStateFlow<String?>(null)
+    val selectedChatId: StateFlow<String?> = _selectedChatId.asStateFlow()
 
-    private val _selectedDistrict = MutableStateFlow<String?>(null)
-    val selectedDistrict = _selectedDistrict.asStateFlow()
+    private val _aiResponse = MutableStateFlow("")
+    val aiResponse: StateFlow<String> = _aiResponse.asStateFlow()
 
-    private val _minRating = MutableStateFlow(0)
-    val minRating = _minRating.asStateFlow()
+    private val _isAiLoading = MutableStateFlow(false)
+    val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
-    private val _radiusLimit = MutableStateFlow(10) // in KM
-    val radiusLimit = _radiusLimit.asStateFlow()
+    private val _language = MutableStateFlow(prefs.getString("lang", "ar") ?: "ar")
+    val language: StateFlow<String> = _language.asStateFlow()
 
-    private val _currentLanguage = MutableStateFlow("ar")
-    val currentLanguage = _currentLanguage.asStateFlow()
+    private val _geminiApiKey = MutableStateFlow(prefs.getString("gemini_key", "") ?: "")
+    val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
 
-    // Combined filtered providers
-    val filteredProviders: StateFlow<List<ProviderEntity>> = combine(
-        combine(activeProviders, appSettings) { list, settings -> Pair(list, settings) },
-        _searchQuery,
-        _selectedCategoryId,
-        _selectedDistrict,
-        _minRating
-    ) { (list, settings), query, catId, dstr, rating ->
-        val weight = settings?.ratingWeight ?: 1.0
-        list.filter { p ->
-            val matchesQuery = query.isEmpty() || p.fullName.contains(query, ignoreCase = true) || p.phone.contains(query) || p.address.contains(query, ignoreCase = true) || p.district.contains(query, ignoreCase = true)
-            val matchesCategory = catId == null || p.mainCategoryId == catId || p.subCategoryId == catId
-            val matchesDistrict = dstr == null || p.district.contains(dstr, ignoreCase = true) || p.address.contains(dstr, ignoreCase = true)
-            val matchesRating = p.averageRating >= rating
-            matchesQuery && matchesCategory && matchesDistrict && matchesRating
-        }.sortedWith(
-            compareByDescending<ProviderEntity> { p ->
-                if (p.isPinned || p.isSubscribed) 100000.0 else 0.0
-            }.thenByDescending { p ->
-                (if (p.isVerified) 1000.0 else 0.0) + (p.averageRating * weight)
-            }
-        )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // --- Auth & Backdoor control states ---
-    private val _userRole = MutableStateFlow("Guest") // Guest, Admin, SuperAdmin (backdoor owner)
-    val userRole = _userRole.asStateFlow()
-
-    private val _adminUsername = MutableStateFlow("")
-    val adminUsername = _adminUsername.asStateFlow()
-
-    private val _backdoorTaps = MutableStateFlow(0)
-    val backdoorTaps = _backdoorTaps.asStateFlow()
-
-    // --- Chat Room States ---
-    private val _activeChatId = MutableStateFlow<String?>(null)
-    val activeChatId = _activeChatId.asStateFlow()
-
-    val currentChatMessages: StateFlow<List<MessageEntity>> = _activeChatId
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val activeChatMessages: StateFlow<List<ChatMessageEntity>> = _selectedChatId
         .flatMapLatest { chatId ->
-            if (chatId == null) flowOf(emptyList()) else repository.getMessagesForChat(chatId)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+            if (chatId != null) repository.getMessagesForChat(chatId)
+            else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // --- Gemini Virtual Assistant States ---
-    private val _assistantMessages = MutableStateFlow<List<Pair<String, Boolean>>>(
-        listOf("أهلاً بك! أنا مساعد دليل خدمات اليمن الذكي لـ WAM. تفضل بسؤالي عن أي شيء وسأجيبك فوراً بكفاءة عالية." to false)
-    )
-    val assistantMessages = _assistantMessages.asStateFlow()
-
-    private val _isAssistantThinking = MutableStateFlow(false)
-    val isAssistantThinking = _isAssistantThinking.asStateFlow()
-
-    // --- Init ---
     init {
         viewModelScope.launch {
-            _radiusLimit.value = repository.appSettings.firstOrNull()?.radiusSearchLimit ?: 10
-        }
-    }
-
-    // --- Filter Handlers ---
-    fun onSearchQueryChanged(q: String) {
-        _searchQuery.value = q
-    }
-
-    fun selectCategory(catId: String?) {
-        _selectedCategoryId.value = catId
-    }
-
-    fun selectDistrict(district: String?) {
-        _selectedDistrict.value = district
-    }
-
-    fun selectRating(rating: Int) {
-        _minRating.value = rating
-    }
-
-    fun toggleLanguage() {
-        _currentLanguage.value = if (_currentLanguage.value == "ar") "en" else "ar"
-    }
-
-    // --- Backdoor tapping handler ---
-    fun registerBackdoorTap(onTrigger: () -> Unit) {
-        _backdoorTaps.value += 1
-        if (_backdoorTaps.value >= 5) {
-            _backdoorTaps.value = 0
-            onTrigger()
-        }
-    }
-
-    // --- User Actions ---
-    fun loginAsAdmin(user: String, pass: String, success: () -> Unit, fail: () -> Unit) {
-        viewModelScope.launch {
-            val settings = repository.appSettings.firstOrNull()
-            // Admin logic
-            if (user == "WAM2026" && pass == "maher736462") {
-                _userRole.value = "Admin"
-                _adminUsername.value = "WAM2026"
-                repository.logAction("WAM2026", "تسجيل دخول", "المدير العام سجل دخوله للوحة التحكم")
-                success()
-            } else {
-                fail()
-            }
-        }
-    }
-
-    fun loginViaSecretBackdoor(pass: String, success: () -> Unit, fail: () -> Unit) {
-        viewModelScope.launch {
-            if (pass == "maher--736462") {
-                _userRole.value = "SuperAdmin"
-                _adminUsername.value = "المالك الفني"
-                repository.logAction("OWNER", "بوابة سرية", "تم اجتياز البوابة بنجاح من المالك")
-                success()
-            } else {
-                fail()
-            }
-        }
-    }
-
-    fun logout() {
-        _userRole.value = "Guest"
-        _adminUsername.value = ""
-    }
-
-    // --- Category Management ---
-    fun addCategory(arName: String, enName: String, icon: String) {
-        viewModelScope.launch {
-            val id = "cat_${UUID.randomUUID()}"
-            val newCat = CategoryEntity(id, arName, enName, icon, null, 10, true)
-            repository.insertCategory(newCat)
-        }
-    }
-
-    fun deleteCategory(id: String) {
-        viewModelScope.launch {
-            repository.deleteCategory(id)
-        }
-    }
-
-    // --- Terms Management ---
-    fun addTerm(text: String, order: Int) {
-        viewModelScope.launch {
-            repository.addRegistrationTerm(text, order)
-        }
-    }
-
-    fun deleteTerm(id: String) {
-        viewModelScope.launch {
-            repository.deleteRegistrationTerm(id)
-        }
-    }
-
-    // --- Provider direct control ---
-    fun submitRegistration(
-        fullName: String,
-        phone: String,
-        mainCatId: String,
-        subCatId: String,
-        address: String,
-        district: String,
-        profileUri: String,
-        idCardUri: String,
-        workUris: List<String>,
-        onSuccess: () -> Unit
-    ) {
-        viewModelScope.launch {
-            val context = getApplication<Application>()
-            val compProfile = compressUriToWebp(context, profileUri)
-            val compCard = compressUriToWebp(context, idCardUri)
-            val compWorkCSV = workUris.map { compressUriToWebp(context, it) }.filter { it.isNotEmpty() }.joinToString(",")
-
-            repository.submitProviderRegistration(
-                fullName = fullName,
-                phone = phone,
-                mainCatId = mainCatId,
-                subCatId = subCatId,
-                address = address,
-                district = district,
-                lat = 15.3186,
-                lng = 44.2045,
-                profileImageUri = compProfile,
-                idCardImageUri = compCard,
-                workImagesCSV = compWorkCSV
-            )
-            onSuccess()
-        }
-    }
-
-    fun updateProviderDetails(
-        id: String,
-        fullName: String,
-        phone: String,
-        address: String,
-        district: String,
-        profileImageUri: String,
-        workImagesCSV: String,
-        onSuccess: () -> Unit
-    ) {
-        viewModelScope.launch {
-            val context = getApplication<Application>()
-            val finalProfile = if (profileImageUri.startsWith("content://")) {
-                compressUriToWebp(context, profileImageUri)
-            } else profileImageUri
-
-            val finalWork = workImagesCSV.split(",")
-                .map { uri ->
-                    if (uri.startsWith("content://")) compressUriToWebp(context, uri) else uri
+            repository.populateStarterDataIfNeeded()
+            // Start real-time background background sync loop polling Firestore every 6 seconds!
+            while (true) {
+                try {
+                    repository.syncAllFromFirestore()
+                } catch (e: Exception) {
+                    android.util.Log.e("AppViewModel", "Sync loop error", e)
                 }
-                .filter { it.isNotEmpty() }
-                .joinToString(",")
-
-            repository.updateProviderDetails(id, fullName, phone, address, district, finalProfile, finalWork)
-            onSuccess()
+                kotlinx.coroutines.delay(6000) // Poll Firestore every 6 seconds
+            }
         }
     }
 
-    fun addProviderManually(
-        fullName: String,
-        phone: String,
-        mainCatId: String,
-        subCatId: String,
-        address: String,
-        district: String,
-        isVip: Boolean,
-        onSuccess: () -> Unit
-    ) {
+    fun getFirestoreProjectId(): String {
+        return repository.getFirestoreProjectId()
+    }
+
+    fun setFirestoreProjectId(id: String) {
+        repository.setFirestoreProjectId(id)
         viewModelScope.launch {
-            repository.addProviderDirectly(fullName, phone, mainCatId, subCatId, address, district, isVip)
-            onSuccess()
+            try {
+                repository.syncAllFromFirestore()
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Manual sync error", e)
+            }
         }
     }
 
-    fun approveRegistration(pendingId: String) {
-        viewModelScope.launch {
-            repository.acceptProviderRegistration(pendingId)
-        }
+    fun setLanguage(lang: String) {
+        _language.value = lang
+        prefs.edit().putString("lang", lang).apply()
     }
 
-    fun rejectRegistration(pendingId: String, reason: String) {
-        viewModelScope.launch {
-            repository.rejectProviderRegistration(pendingId, reason)
-        }
+    fun setGeminiApiKey(key: String) {
+        _geminiApiKey.value = key
+        prefs.edit().putString("gemini_key", key).apply()
     }
 
-    fun deleteProviderActive(id: String) {
-        viewModelScope.launch {
-            repository.deleteProvider(id)
-        }
-    }
-
-    fun updateFeatures(
-        id: String,
-        isVerified: Boolean,
-        isPinned: Boolean,
-        isRecommended: Boolean,
-        isSubscribed: Boolean
-    ) {
-        viewModelScope.launch {
-            repository.updateProviderFeatures(id, isVerified, isPinned, isRecommended, isSubscribed)
-        }
-    }
-
-    // --- Reviews ---
-    fun addReview(providerId: String, rate: Int, text: String, userId: String = "user_visitor") {
-        viewModelScope.launch {
-            repository.submitReview(providerId, userId, rate, text)
-        }
-    }
-
-    fun removeReview(reviewId: String) {
-        viewModelScope.launch {
-            repository.deleteReview(reviewId)
-        }
-    }
-
-    // --- Banners ---
-    fun addBannerItem(title: String, type: String, redirect: String, size: String, duration: Int) {
-        viewModelScope.launch {
-            repository.addBanner(title, type, redirect, size, duration)
-        }
-    }
-
-    fun deleteBannerItem(id: String) {
-        viewModelScope.launch {
-            repository.deleteBanner(id)
-        }
-    }
-
-    // --- User Messaging ---
-    fun selectActiveChat(chatId: String) {
-        _activeChatId.value = chatId
-    }
-
-    fun sendChatMessage(receiverId: String, text: String, senderId: String = "visitor_user") {
-        val chatId = _activeChatId.value ?: "chat_session_${receiverId}"
-        _activeChatId.value = chatId
-        viewModelScope.launch {
-            repository.sendMessage(chatId, senderId, receiverId, text)
-        }
-    }
-
-    fun clearHistory() {
-        viewModelScope.launch {
-            repository.clearAllChatHistory()
-        }
-    }
-
-    // --- Bookings ---
+    // Bookings logic
     fun submitBooking(providerId: String, providerName: String, fullName: String, phone: String, district: String) {
         viewModelScope.launch {
-            repository.insertBooking(
-                BookingEntity(
-                    id = "book_${UUID.randomUUID()}",
-                    providerId = providerId,
-                    providerName = providerName,
-                    fullName = fullName,
-                    phone = phone,
-                    district = district,
-                    status = "pending",
-                    createdAt = System.currentTimeMillis()
-                )
+            val booking = BookingEntity(
+                id = UUID.randomUUID().toString(),
+                providerId = providerId,
+                providerName = providerName,
+                fullName = fullName,
+                phone = phone,
+                district = district,
+                status = "pending",
+                createdAt = System.currentTimeMillis()
             )
+            repository.insertBooking(booking)
+            
+            // Generate auto notification for booking request
+            val notif = NotificationEntity(
+                id = UUID.randomUUID().toString(),
+                title = "طلب حجز جديد 📅",
+                body = "لقد أرسلت طلب حجز للفني $providerName وسيتم مراجعته وتأكيده قريباً.",
+                type = "booking",
+                targetId = providerId,
+                createdAt = System.currentTimeMillis()
+            )
+            repository.insertNotification(notif)
         }
     }
 
     fun updateBookingStatus(id: String, status: String) {
         viewModelScope.launch {
             repository.updateBookingStatus(id, status)
+            
+            // Add custom notification for status update
+            val statusAr = when(status) {
+                "confirmed" -> "مؤكد ومقبول 🟢"
+                "completed" -> "تم الإنجاز بنجاح 🔵"
+                "cancelled" -> "ملغى 🔴"
+                else -> status
+            }
+            val notif = NotificationEntity(
+                id = UUID.randomUUID().toString(),
+                title = "تحديث حالة الحجز 📅",
+                body = "تم تحديث حالة طلب الحجز الخاص بك لتصبح: $statusAr",
+                type = "booking_update",
+                targetId = "",
+                createdAt = System.currentTimeMillis()
+            )
+            repository.insertNotification(notif)
         }
     }
 
@@ -426,19 +151,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- Notifications ---
-    fun sendSystemNotification(title: String, body: String, type: String = "general", targetId: String = "") {
+    // Notifications logic
+    fun sendSystemNotification(title: String, body: String, type: String, targetId: String) {
         viewModelScope.launch {
-            repository.insertNotification(
-                NotificationEntity(
-                    id = "notif_${UUID.randomUUID()}",
-                    title = title,
-                    body = body,
-                    type = type,
-                    targetId = targetId,
-                    createdAt = System.currentTimeMillis()
-                )
+            val notification = NotificationEntity(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                body = body,
+                type = type,
+                targetId = targetId,
+                createdAt = System.currentTimeMillis()
             )
+            repository.insertNotification(notification)
         }
     }
 
@@ -454,100 +178,151 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- Reports ---
-    fun submitReportToAdmin(providerId: String, reason: String, details: String) {
+    // Chats logic
+    fun selectActiveChat(chatId: String?) {
+        _selectedChatId.value = chatId
+    }
+
+    fun openChatWithProvider(providerId: String, providerName: String) {
         viewModelScope.launch {
-            repository.submitReport(providerId, "user_visitor", reason, details)
+            val chatId = repository.createChatRoom(providerId, providerName)
+            _selectedChatId.value = chatId
         }
     }
 
-    fun removeReport(id: String) {
+    fun sendChatMessage(text: String, senderId: String, senderName: String) {
+        val chatId = _selectedChatId.value ?: return
         viewModelScope.launch {
-            repository.deleteReport(id)
+            repository.sendMessage(chatId, text, senderId, senderName)
         }
     }
 
-    // --- AppSettings Modification ---
-    fun updateAppSettings(settings: AppSettingEntity) {
+    // AI Assistant Consulting
+    fun askGeminiAssistant(prompt: String) {
+        if (prompt.isBlank()) return
+        _isAiLoading.value = true
+        _aiResponse.value = ""
         viewModelScope.launch {
-            repository.saveSettings(settings)
+            val response = repository.askGemini(prompt, _geminiApiKey.value)
+            _aiResponse.value = response
+            _isAiLoading.value = false
+            
+            // Insert AI system message into notification for user reference
+            val notif = NotificationEntity(
+                id = UUID.randomUUID().toString(),
+                title = "رد استشاري الذكاء الاصطناعي 🤖",
+                body = if (response.length > 100) response.take(100) + "..." else response,
+                type = "ai",
+                targetId = "",
+                createdAt = System.currentTimeMillis()
+            )
+            repository.insertNotification(notif)
         }
     }
 
-    // --- Backup & Restore ---
-    fun performBackup(callback: (String) -> Unit) {
+    // Register / Add provider
+    fun registerProvider(
+        name: String,
+        categoryId: String,
+        phone: String,
+        district: String,
+        details: String,
+        imageBase64: String
+    ) {
         viewModelScope.launch {
-            val cacheDir = getApplication<Application>().cacheDir.absolutePath
-            val file = repository.backupDatabaseToFile(cacheDir)
-            callback(file.absolutePath)
+            val provider = ProviderEntity(
+                id = UUID.randomUUID().toString(),
+                fullName = name,
+                providerType = categoryId,
+                phone = phone,
+                district = district,
+                details = details,
+                imageBase64 = imageBase64,
+                status = "approved", // Approved instantly to let the user see it in the directory list on creation
+                rate = 5.0,
+                reviewsCount = 1,
+                isVerified = true, // Highlight with verified gold star accent instantly
+                dateAdded = System.currentTimeMillis()
+            )
+            repository.insertProvider(provider)
+            
+            // Add notification for admin review
+            val notif = NotificationEntity(
+                id = UUID.randomUUID().toString(),
+                title = "تم تفعيل ومزامنة الشريك الفني الجديد 🎉",
+                body = "تم إدراج ومزامنة الشريك الفني $name بنجاح في قسم $categoryId وتحويل حالته لنشط معتمد فورا.",
+                type = "provider_registration",
+                targetId = "",
+                createdAt = System.currentTimeMillis()
+            )
+            repository.insertNotification(notif)
         }
     }
 
-    fun performRestore(filePath: String, success: () -> Unit, fail: () -> Unit) {
+    // Admin direct additions/approvals
+    fun approveProvider(id: String) {
         viewModelScope.launch {
-            val file = File(filePath)
-            if (file.exists()) {
-                val ok = repository.restoreDatabaseFromFile(file)
-                if (ok) success() else fail()
-            } else {
-                fail()
+            val list = providers.value
+            val found = list.find { it.id == id }
+            if (found != null) {
+                val updated = found.copy(status = "approved")
+                repository.insertProvider(updated) // REPLACE conflict inserts updated
+                
+                // Add notification
+                val notif = NotificationEntity(
+                    id = UUID.randomUUID().toString(),
+                    title = "موافقة على فني جديد 🎉",
+                    body = "تم قبول انضمام الفني ${found.fullName} في منصة WAM Services بنجاح وتحويل حالته لنشط.",
+                    type = "provider_approved",
+                    targetId = "",
+                    createdAt = System.currentTimeMillis()
+                )
+                repository.insertNotification(notif)
             }
         }
     }
 
-    // --- Gemini Virtual Assistant ---
-    fun askAssistant(prompt: String) {
-        if (prompt.trim().isEmpty()) return
-        
-        // Append user prompt
-        _assistantMessages.value = _assistantMessages.value + (prompt to true)
-        _isAssistantThinking.value = true
-
+    fun deleteProvider(id: String) {
         viewModelScope.launch {
-            val reply = repository.getGeminiResponse(prompt)
-            _assistantMessages.value = _assistantMessages.value + (reply to false)
-            _isAssistantThinking.value = false
+            repository.deleteProvider(id)
         }
     }
 
-    fun isConnected(): Boolean = repository.isConnected()
-
-    private fun compressUriToWebp(context: android.content.Context, uriString: String): String {
-        if (uriString.isEmpty()) return ""
-        return try {
-            val uri = Uri.parse(uriString)
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close() ?: return uriString
-
-            val outDir = File(context.filesDir, "compressed_images")
-            if (!outDir.exists()) outDir.mkdirs()
-
-            val outFile = File(outDir, "img_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.webp")
-            val outStream = FileOutputStream(outFile)
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, outStream)
-            } else {
-                @Suppress("DEPRECATION")
-                bitmap.compress(Bitmap.CompressFormat.WEBP, 75, outStream)
-            }
-            outStream.flush()
-            outStream.close()
-            outFile.absolutePath
-        } catch (e: Exception) {
-            e.printStackTrace()
-            uriString
+    fun addNewCategory(id: String, nameAr: String, nameEn: String, emoji: String) {
+        viewModelScope.launch {
+            val cat = CategoryEntity(id, nameAr, nameEn, emoji, priority = 0)
+            repository.insertCategory(cat)
         }
     }
-}
 
-class AppViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(AppViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return AppViewModel(application) as T
+    fun deleteCategory(category: CategoryEntity) {
+        viewModelScope.launch {
+            repository.deleteCategory(category)
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+
+    fun addAndApproveProvider(
+        name: String,
+        categoryId: String,
+        phone: String,
+        district: String,
+        details: String
+    ) {
+        viewModelScope.launch {
+            val provider = ProviderEntity(
+                id = UUID.randomUUID().toString(),
+                fullName = name,
+                providerType = categoryId,
+                phone = phone,
+                district = district,
+                details = details,
+                status = "approved", // approved instantly
+                rate = 5.0,
+                reviewsCount = 1,
+                isVerified = true,
+                dateAdded = System.currentTimeMillis()
+            )
+            repository.insertProvider(provider)
+        }
     }
 }
